@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Run Readme-ai
-        uses: eli64s/readme-ai-action@main
+        uses: zeroxfox/readme-ai-action@main
         env:
           OPENAI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENAI_BASE_URL: "https://openrouter.ai/api/v1"
