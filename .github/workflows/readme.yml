@@ -11,9 +11,61 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Run Readme-ai
-        uses: zeroxfox/readme-ai-action@main
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-cache-dependency-path: '' # لتفادي أي مشاكل في الكاش
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install requests
+
+      - name: Generate README via OpenRouter
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          OPENAI_BASE_URL: "https://openrouter.ai/api/v1"
-          LLM_MODEL: "moonshotai/kimi-k2.6:free"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          python -c "
+          import os, requests, json
+          
+          # تجميع أسماء الملفات في المشروع لفهم الهيكل
+          files_structure = []
+          for root, dirs, files in os.walk('.'):
+              if '.git' in root or '.github' in root: continue
+              for f in files:
+                  files_structure.append(os.path.join(root, f))
+          
+          structure_str = '\n'.join(files_structure[:100]) # أول 100 ملف للاختصار
+          
+          prompt = f'Generate a professional GitHub README.md file for a project with the following file structure:\n{structure_str}\n\nProvide ONLY the raw markdown content, no extra talk or markdown code blocks wraps.'
+          
+          headers = {
+              'Authorization': f'Bearer {os.environ[\"OPENROUTER_API_KEY\"]}',
+              'Content-Type': 'application/json'
+          }
+          
+          data = {
+              'model': 'google/gemini-2.5-flash:free',
+              'messages': [{'role': 'user', 'content': prompt}]
+          }
+          
+          response = requests.post('https://openrouter.ai/api/v1/chat/completions', headers=headers, json=data)
+          res_json = response.json()
+          
+          if 'choices' in res_json:
+              readme_content = res_json['choices'][0]['message']['content']
+              with open('README.md', 'w', encoding='utf-8') as f:
+                  f.write(readme_content)
+              print('README generated successfully!')
+          else:
+              print('Error from API:', res_json)
+              exit(1)
+          "
+
+      - name: Commit and Push README
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "docs: auto generate README.md via Gemini" || echo "No changes to commit"
+          git push origin master
