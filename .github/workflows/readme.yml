@@ -4,7 +4,6 @@ on:
     branches:
       - master
 
-# هذه الصلاحيات تسمح للـ Action بتعديل الملفات وعمل Commit و Push
 permissions:
   contents: write
 
@@ -31,6 +30,11 @@ jobs:
           python -c "
           import os, requests, json
           
+          api_key = os.environ.get('OPENROUTER_API_KEY', '')
+          if not api_key:
+              print('❌ Error: OPENROUTER_API_KEY is completely empty or not found in GitHub Secrets!')
+              exit(1)
+          
           files_structure = []
           for root, dirs, files in os.walk('.'):
               if '.git' in root or '.github' in root: continue
@@ -42,7 +46,7 @@ jobs:
           prompt = f'Generate a professional GitHub README.md file for a project with the following file structure:\n{structure_str}\n\nProvide ONLY the raw markdown content, no extra talk or markdown code blocks wraps.'
           
           headers = {
-              'Authorization': f'Bearer {os.environ[\"OPENROUTER_API_KEY\"]}',
+              'Authorization': f'Bearer {api_key}',
               'Content-Type': 'application/json'
           }
           
@@ -51,16 +55,20 @@ jobs:
               'messages': [{'role': 'user', 'content': prompt}]
           }
           
-          response = requests.post('https://openrouter.ai/api/v1/chat/completions', headers=headers, json=data)
-          res_json = response.json()
-          
-          if 'choices' in res_json:
-              readme_content = res_json['choices'][0]['message']['content']
-              with open('README.md', 'w', encoding='utf-8') as f:
-                  f.write(readme_content)
-              print('README generated successfully!')
-          else:
-              print('Error from API:', res_json)
+          try:
+              response = requests.post('https://openrouter.ai/api/v1/chat/completions', headers=headers, json=data)
+              res_json = response.json()
+              
+              if 'choices' in res_json:
+                  readme_content = res_json['choices'][0]['message']['content']
+                  with open('README.md', 'w', encoding='utf-8') as f:
+                      f.write(readme_content)
+                  print('✅ README generated successfully!')
+              else:
+                  print('❌ Full Error Response from OpenRouter:', json.dumps(res_json, indent=2))
+                  exit(1)
+          except Exception as e:
+              print('❌ Network or Script Error:', str(e))
               exit(1)
           "
 
